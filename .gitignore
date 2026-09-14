@@ -1,0 +1,26 @@
+# Local configuration: keep machine-specific paths and any secrets out of Git.
+.env
+
+# Python build, test, and editor files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Runtime products and local satellite imagery can be regenerated or are too
+# large to keep in a source repository.
+data/
+dataset/
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.html
+
+# Jupyter's temporary notebook state
+.ipynb_checkpoints/
+.virtual_documents/

@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+gradio
+numpy<2
+pandas<3
+pillow
+plotly
+scikit-learn
+sqlalchemy
+rasterio
+matplotlib
