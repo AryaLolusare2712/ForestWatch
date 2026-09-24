@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from .database import Alert, SessionLocal, initialise_database
 
-HEALTH_ALERT_THRESHOLD = 30.0
+HEALTH_ALERT_THRESHOLD = 35.0
 
 def check_health_alerts(scores: pd.DataFrame) -> pd.DataFrame:
     """Store one alert per observation whose computed health score is below 35."""

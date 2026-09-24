@@ -16,6 +16,11 @@ class Settings:
     healthy_ndvi: float = float(os.getenv("FORESTWATCH_HEALTHY_NDVI", "0.6"))
     decrease_threshold: float = float(os.getenv("FORESTWATCH_DECREASE", "-0.15"))
     aoi_name: str = "Gorewada Forest, Nagpur, Maharashtra, India"
+    smtp_host: str = os.getenv("FORESTWATCH_SMTP_HOST", "")
+    smtp_port: int = int(os.getenv("FORESTWATCH_SMTP_PORT", "587"))
+    smtp_username: str = os.getenv("FORESTWATCH_SMTP_USERNAME", "")
+    smtp_password: str = os.getenv("FORESTWATCH_SMTP_PASSWORD", "")
+    smtp_from: str = os.getenv("FORESTWATCH_SMTP_FROM", "")
 
     def ensure_output_dirs(self):
         for name in ("processed", "features", "metrics", "models", "alerts", "reports"):

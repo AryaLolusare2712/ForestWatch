@@ -57,6 +57,53 @@ def sentinel1_features(date: str):
     preview = np.dstack([_normalise(vv), _normalise(vh), _normalise(ratio)])
     return preview, {"date": date, "vv_mean": float(np.nanmean(vv)), "vh_mean": float(np.nanmean(vh)), "vv_vh_ratio_mean": float(np.nanmean(ratio)), **metadata}
 
+
+def _resize_nearest(array: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+    """Resize an aligned raster without adding another image-processing dependency."""
+    rows = np.rint(np.linspace(0, array.shape[0] - 1, shape[0])).astype(int)
+    columns = np.rint(np.linspace(0, array.shape[1] - 1, shape[1])).astype(int)
+    return array[np.ix_(rows, columns)]
+
+
+def radar_assisted_ndvi_proxy(date: str, shape: tuple[int, int], visible_proxy: np.ndarray,
+                              fill_mask: np.ndarray) -> tuple[np.ndarray, dict]:
+    """Estimate only missing interior NDVI-preview pixels from matching S1 VV/VH.
+
+    This is available for the two supplied, co-registered Gorewada acquisitions.
+    A per-date linear radar-to-NDVI model is fitted on the aligned S1/S2 grid,
+    then calibrated to the visible pixels of the rendered NDVI preview.  It is
+    deliberately not used for other dates: there is no matching radar scene.
+    """
+    date_index = {"2024-12-23": (0, 1, 2), "2025-12-28": (3, 4, 5)}.get(str(date))
+    if not date_index or not available():
+        return visible_proxy, {"used": False, "reason": "No aligned Sentinel-1 VV/VH scene for this NDVI date."}
+    vv_i, vh_i, ndvi_i = date_index
+    cube = np.load(settings.project_data_path / "Gorewada_Temporal_Dataset_2024_2025.npy", mmap_mode="r")
+    vv, vh, ndvi = (np.asarray(cube[..., i], dtype=np.float32) for i in (vv_i, vh_i, ndvi_i))
+    ratio = np.divide(vv, vh, out=np.full_like(vv, np.nan), where=np.abs(vh) > 1e-9)
+    fit = np.isfinite(vv) & np.isfinite(vh) & np.isfinite(ratio) & np.isfinite(ndvi)
+    if fit.sum() < 100 or shape != visible_proxy.shape or fill_mask.shape != shape:
+        return visible_proxy, {"used": False, "reason": "Aligned Sentinel-1 data could not be fitted to this scene."}
+    # Limit the fit deterministically; the full image can be much larger than
+    # needed for this four-feature calibration.
+    sample = np.flatnonzero(fit)[::max(1, int(fit.sum() // 20000))]
+    features = np.column_stack((np.ones(sample.size), vv.ravel()[sample], vh.ravel()[sample], ratio.ravel()[sample]))
+    coefficients, *_ = np.linalg.lstsq(features, ndvi.ravel()[sample], rcond=None)
+    radar_ndvi = coefficients[0] + coefficients[1] * vv + coefficients[2] * vh + coefficients[3] * ratio
+    radar_ndvi = _resize_nearest(radar_ndvi, shape)
+    # Align the radar estimate to the colour-based proxy's scale using pixels
+    # where the optical preview is readable.
+    overlap = np.isfinite(visible_proxy) & np.isfinite(radar_ndvi)
+    if overlap.sum() < 100:
+        return visible_proxy, {"used": False, "reason": "Too little visible optical area to calibrate the radar estimate."}
+    calibration, *_ = np.linalg.lstsq(np.column_stack((radar_ndvi[overlap], np.ones(overlap.sum()))), visible_proxy[overlap], rcond=None)
+    estimate = radar_ndvi * calibration[0] + calibration[1]
+    result = visible_proxy.copy()
+    usable = fill_mask & np.isfinite(estimate)
+    result[usable] = np.clip(estimate[usable], -1, 1)
+    return result, {"used": bool(usable.any()), "filled_pixels": int(usable.sum()),
+                    "reason": "Interior optical gaps estimated from aligned Sentinel-1 VV/VH radar."}
+
 def labelled_change_summary():
     root = settings.project_data_path
     candidate = np.load(root / "Gorewada_Candidate_Change_Label_2024_2025.npy", mmap_mode="r")

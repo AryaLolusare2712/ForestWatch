@@ -6,3 +6,7 @@ class ChangeRequest(BaseModel):
 
 class PredictionRequest(BaseModel):
     model: str = Field(default="Linear Regression", pattern="^(Linear Regression|Random Forest)$")
+
+class Credentials(BaseModel):
+    email: str
+    password: str

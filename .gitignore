@@ -10,6 +10,8 @@ __pycache__/
 venv/
 .idea/
 .vscode/
+frontend/node_modules/
+frontend/dist/
 
 # Runtime products and local satellite imagery can be regenerated or are too
 # large to keep in a source repository.
