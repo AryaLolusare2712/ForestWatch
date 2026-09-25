@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from datetime import date as calendar_date
 from functools import lru_cache
+from PIL import Image, ImageOps
 import numpy as np
 import pandas as pd
 from .config import settings
@@ -107,6 +108,35 @@ def ndvi_timeseries(inventory: pd.DataFrame) -> pd.DataFrame:
     result=pd.DataFrame(rows)
     if not result.empty: result["ndvi_change"] = result.ndvi_mean.diff()
     return result
+
+
+def yearly_ndvi_overview(inventory: pd.DataFrame, preview_size: int = 240, interval: str = "yearly") -> pd.DataFrame:
+    """Fast annual NDVI-display summary for the interactive dashboard.
+
+    Full-resolution image processing is intentionally reserved for reports and
+    selected-date change detection.  A small, orientation-corrected thumbnail
+    preserves the annual vegetation trend while returning quickly for a large
+    local scene collection.
+    """
+    if interval not in {"yearly", "monthly"}:
+        raise ValueError("Timeline interval must be yearly or monthly.")
+    rows = []
+    observations = inventory.loc[inventory.category == "ndvi"].dropna(subset=["date", "path"])
+    for row in observations.itertuples():
+        try:
+            with Image.open(row.path) as source:
+                image = ImageOps.exif_transpose(source).convert("RGB")
+                image.thumbnail((preview_size, preview_size), Image.Resampling.BILINEAR)
+                rgb = np.asarray(image, dtype=np.float32) / 255.0
+            values = np.clip((rgb[..., 1] - rgb[..., 0]) / (rgb[..., 1] + rgb[..., 0] + 1e-6), -1, 1)
+            valid = np.max(rgb, axis=-1) > (5 / 255.0)
+            if valid.any(): rows.append({"period": str(row.date)[:4] if interval == "yearly" else str(row.date)[:7], "ndvi_mean": float(values[valid].mean())})
+        except (OSError, ValueError):
+            continue
+    if not rows: return pd.DataFrame(columns=["date", "ndvi_mean", "scene_count"])
+    result = pd.DataFrame(rows).groupby("period", as_index=False).agg(ndvi_mean=("ndvi_mean", "mean"), scene_count=("ndvi_mean", "size"))
+    result["date"] = result["period"]
+    return result[["date", "ndvi_mean", "scene_count"]]
 
 def health_scores(series: pd.DataFrame) -> pd.DataFrame:
     result=series.copy()

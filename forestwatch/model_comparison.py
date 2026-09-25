@@ -7,6 +7,7 @@ split spatially so test tiles are not reused during training.
 from __future__ import annotations
 import json
 import os
+import shutil
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -70,31 +71,53 @@ def _cnn_metrics(rows, epochs):
     # from looking accurate while detecting no changes at all.
     loss_fn = nn.CrossEntropyLoss(weight=class_counts.sum() / (2 * class_counts))
     model.train()
-    for _ in range(max(1, min(int(epochs), 50))):
+    for _ in range(max(1, int(epochs))):
         optimiser.zero_grad(); loss_fn(model(x), y).backward(); optimiser.step()
     tx = torch.tensor(np.stack([row[2].transpose(2, 0, 1) / 255 for row in test]), dtype=torch.float32)
     truth = np.array([row[4] for row in test]); model.eval()
     with torch.no_grad(): predicted = model(tx).argmax(1).numpy()
     precision, recall, f1, _ = precision_recall_fscore_support(truth, predicted, average="binary", zero_division=0)
-    return {"model":"Tiny CNN", "evaluation":"held-out spatial tiles", "accuracy":float(accuracy_score(truth,predicted)), "precision":float(precision), "recall":float(recall), "f1":float(f1), "test_tiles":len(test)}
+    return {"model":"Tiny CNN", "evaluation":"held-out spatial tiles", "accuracy":float(accuracy_score(truth,predicted)), "precision":float(precision), "recall":float(recall), "f1":float(f1), "test_tiles":len(test), "training_change_tiles":int(y.sum()), "test_change_tiles":int(truth.sum())}
 
 
 def _write_yolo_dataset(rows, root: Path):
+    # This folder is generated from the source .npy files.  Rebuild it on every
+    # run so images/labels from an earlier experiment can never leak into the
+    # current validation result.
+    if root.exists():
+        shutil.rmtree(root)
     for split in ("train", "val"):
         (root / "images" / split).mkdir(parents=True, exist_ok=True); (root / "labels" / split).mkdir(parents=True, exist_ok=True)
+    augmented_positive_tiles = 0
     for index, (_, _, image, mask, _) in enumerate(rows):
         top, left = rows[index][0], rows[index][1]
         split = "val" if ((top // 32) + (left // 32)) % 5 == 0 else "train"; stem = f"tile_{index:03d}"
         cv2.imwrite(str(root / "images" / split / f"{stem}.png"), cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-        count, _, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
-        labels = []
+        # High-confidence change labels may be only a few pixels wide on the
+        # 10 m grid. Expand them by two pixels to give an object detector a
+        # learnable local context, without changing which pixels are labelled
+        # as the original change source.
+        context_mask = cv2.dilate(mask.astype(np.uint8), np.ones((5, 5), dtype=np.uint8), iterations=1)
+        count, _, stats, _ = cv2.connectedComponentsWithStats(context_mask, connectivity=8)
+        boxes = []
         height, width = mask.shape
         for x, y, w, h, area in stats[1:]:
-            if area >= 8: labels.append(f"0 {(x+w/2)/width:.6f} {(y+h/2)/height:.6f} {w/width:.6f} {h/height:.6f}")
-        (root / "labels" / split / f"{stem}.txt").write_text("\n".join(labels), encoding="utf-8")
+            if area >= 1: boxes.append(((x + w / 2) / width, (y + h / 2) / height, w / width, h / height))
+        def write_sample(name, sample, sample_boxes):
+            cv2.imwrite(str(root / "images" / split / f"{name}.png"), cv2.cvtColor(sample, cv2.COLOR_RGB2BGR))
+            text = "\n".join(f"0 {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}" for cx, cy, bw, bh in sample_boxes)
+            (root / "labels" / split / f"{name}.txt").write_text(text, encoding="utf-8")
+        # Original sample, then positive-only geometric augmentation in the
+        # training split. Validation remains completely untouched.
+        write_sample(stem, image, boxes)
+        if split == "train" and boxes:
+            write_sample(f"{stem}_flip_h", cv2.flip(image, 1), [(1 - cx, cy, bw, bh) for cx, cy, bw, bh in boxes])
+            write_sample(f"{stem}_flip_v", cv2.flip(image, 0), [(cx, 1 - cy, bw, bh) for cx, cy, bw, bh in boxes])
+            write_sample(f"{stem}_rot_180", cv2.rotate(image, cv2.ROTATE_180), [(1 - cx, 1 - cy, bw, bh) for cx, cy, bw, bh in boxes])
+            augmented_positive_tiles += 3
     yaml = root / "data.yaml"
     yaml.write_text(f"path: {root.as_posix()}\ntrain: images/train\nval: images/val\nnames:\n  0: vegetation_change\n", encoding="utf-8")
-    return yaml
+    return yaml, augmented_positive_tiles
 
 
 def _yolo_metrics(rows, epochs):
@@ -105,12 +128,27 @@ def _yolo_metrics(rows, epochs):
         from ultralytics import YOLO
     except Exception as exc:
         return {"model":"YOLOv8n", "status":"Unavailable", "detail":f"YOLO could not start: {exc}"}
-    root = settings.output_path / "models" / "yolo_change_dataset"; yaml = _write_yolo_dataset(rows, root)
+    root = settings.output_path / "models" / "yolo_change_dataset"; yaml, augmentations = _write_yolo_dataset(rows, root)
     try:
         model = YOLO("yolov8n.pt")
-        results = model.train(data=str(yaml), epochs=max(1, min(int(epochs), 50)), imgsz=32, batch=4, device="cpu", workers=0, project=str(settings.output_path / "models" / "yolo_runs"), name="gorewada", exist_ok=True, verbose=False)
-        metrics = model.val(data=str(yaml), imgsz=32, device="cpu", workers=0, verbose=False)
-        return {"model":"YOLOv8n", "evaluation":"held-out spatial tiles", "mAP50":float(metrics.box.map50), "mAP50_95":float(metrics.box.map), "precision":float(metrics.box.mp), "recall":float(metrics.box.mr), "status":"Completed", "run_directory":str(results.save_dir)}
+        # The 32px source tiles are upscaled to give YOLO enough feature-map
+        # resolution for compact changes.  The pretrained backbone, AdamW and
+        # positive-only copies make this a meaningful fine-tuning experiment,
+        # rather than a detector trained from scratch on five rare positives.
+        results = model.train(data=str(yaml), epochs=max(1, int(epochs)), imgsz=128,
+                              batch=8, device="cpu", workers=0, optimizer="AdamW",
+                              lr0=0.002, cos_lr=True, fliplr=0.5, flipud=0.5,
+                              mosaic=0.0, project=str(settings.output_path / "models" / "yolo_runs"),
+                              name="gorewada", exist_ok=True, verbose=False)
+        # Validate the actual best checkpoint.  Calling val() on the original
+        # model object can otherwise evaluate its pre-training weights.
+        trained_model = YOLO(str(Path(results.save_dir) / "weights" / "best.pt"))
+        metrics = trained_model.val(data=str(yaml), imgsz=128, device="cpu", workers=0, verbose=False)
+        tile_size = rows[0][2].shape[0]
+        validation_rows = [row for row in rows if ((row[0] // tile_size) + (row[1] // tile_size)) % 5 == 0]
+        validation_coordinates = {(row[0], row[1]) for row in validation_rows}
+        training_rows = [row for row in rows if (row[0], row[1]) not in validation_coordinates]
+        return {"model":"YOLOv8n", "evaluation":"held-out spatial tiles", "mAP50":float(metrics.box.map50), "mAP50_95":float(metrics.box.map), "precision":float(metrics.box.mp), "recall":float(metrics.box.mr), "status":"Completed", "training_change_tiles":int(sum(row[4] for row in training_rows)), "test_change_tiles":int(sum(row[4] for row in validation_rows)), "positive_tile_augmentations":augmentations, "run_directory":str(results.save_dir)}
     except Exception as exc:
         return {"model":"YOLOv8n", "status":"Not completed", "detail":str(exc)}
 
@@ -119,7 +157,8 @@ def compare_cnn_yolo(epochs=5):
     settings.ensure_output_dirs(); rows = _tiles()
     cnn = _cnn_metrics(rows, epochs); yolo = _yolo_metrics(rows, epochs)
     table = pd.DataFrame([cnn, yolo]).fillna("—")
-    note = ("### Experimental comparison\nBoth models use the supplied labelled 2024–2025 Gorewada pair and a spatially held-out tile split. "
-            "One labelled time period is insufficient to claim general accuracy; add independent labelled dates before operational use.")
+    change_tiles = int(sum(row[4] for row in rows))
+    note = (f"### Experimental comparison\nThe supplied label set contains only {change_tiles} changed tiles across one 2024–2025 period. "
+            "Zero precision, recall, or mAP means the model did not detect a labelled held-out change tile; it does not mean there was no forest change. Add independent labelled dates before operational use.")
     output = settings.output_path / "metrics" / "cnn_yolo_comparison.json"; output.write_text(json.dumps(table.to_dict("records"), indent=2), encoding="utf-8")
     return table, note

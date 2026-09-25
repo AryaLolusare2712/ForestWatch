@@ -10,5 +10,6 @@ plotly
 scikit-learn
 sqlalchemy
 ultralytics
+polars
 rasterio
 matplotlib

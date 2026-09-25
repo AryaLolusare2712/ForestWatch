@@ -6,7 +6,7 @@ import pandas as pd
 import json
 from .config import settings
 from .dataset_scanner import scan_dataset, inventory_summary
-from .analysis import ndvi_timeseries, health_scores, ndvi_statistics, change_detection
+from .analysis import ndvi_timeseries, yearly_ndvi_overview, health_scores, ndvi_statistics, change_detection
 from .prediction import train_ndvi_model, forecast_future_ndvi
 from .schemas import ChangeRequest, PredictionRequest, Credentials
 from .auth import register, login, user_from_token
@@ -18,6 +18,7 @@ from .alerts import check_health_alerts, update_alert_status
 from pathlib import Path
 from datetime import datetime
 import shutil
+from PIL import Image
 from .multisatellite import available as multisatellite_available, comparison as multisatellite_comparison
 
 app=FastAPI(title="ForestWatch API", version="1.0.0")
@@ -90,6 +91,12 @@ def ndvi_latest():
     row=data.iloc[-1]; return {"date":row.date,"statistics":ndvi_statistics(row.path),"path":row.path}
 @app.get("/api/ndvi/timeseries")
 def ndvi_ts(): return json_records(series())
+@app.get("/api/ndvi/timeline")
+def ndvi_timeline(interval: str = "yearly"):
+    try: return json_records(yearly_ndvi_overview(inventory(), interval=interval))
+    except ValueError as exc: raise HTTPException(422, detail=str(exc))
+@app.get("/api/ndvi/yearly-timeseries")
+def ndvi_yearly_ts(): return json_records(yearly_ndvi_overview(inventory(), interval="yearly"))
 @app.get("/api/ndvi/dates")
 def ndvi_dates():
     """Fast date list for UI selectors; avoids calculating every scene first."""
@@ -137,6 +144,23 @@ def gis_true_colour(date: str):
     """Serve the actual dated true-colour scene for the GIS frontend."""
     row = record_for_date(date, "true_color")
     return FileResponse(row.path, media_type="image/jpeg", filename=row.filename)
+@app.get("/api/gis/change-overlay/{earlier_date}/{later_date}")
+def gis_change_overlay(earlier_date: str, later_date: str):
+    """Overlay actual NDVI decrease, increase, and stable classes on the later true-colour scene."""
+    try:
+        change = change_detection(record_for_date(earlier_date).path, record_for_date(later_date).path)["difference_map"]
+        later_scene = record_for_date(later_date, "true_color")
+        with Image.open(later_scene.path) as source: base = source.convert("RGBA")
+        overlay = np.zeros((*change.shape, 4), dtype=np.uint8); valid = np.isfinite(change); threshold = abs(settings.decrease_threshold)
+        overlay[valid & (change <= -threshold)] = (239, 75, 68, 175)
+        overlay[valid & (change >= threshold)] = (57, 224, 118, 175)
+        overlay[valid & (np.abs(change) < threshold)] = (245, 204, 66, 48)
+        layer = Image.fromarray(overlay, "RGBA")
+        if layer.size != base.size: layer = layer.resize(base.size, Image.Resampling.NEAREST)
+        settings.ensure_output_dirs(); output = settings.output_path / "metrics" / f"change_overlay_{earlier_date}_to_{later_date}.png"
+        Image.alpha_composite(base, layer).save(output, "PNG")
+        return FileResponse(output, media_type="image/png", filename=output.name)
+    except ValueError as exc: raise HTTPException(422, detail=str(exc))
 @app.post("/api/predictions/train")
 def prediction_train(request: PredictionRequest):
     try: _,metrics,_=train_ndvi_model(series(),request.model); return metrics
