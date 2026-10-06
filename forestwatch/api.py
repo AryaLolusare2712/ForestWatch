@@ -11,7 +11,6 @@ from .prediction import train_ndvi_model, forecast_future_ndvi
 from .schemas import ChangeRequest, PredictionRequest, Credentials
 from .auth import register, login, user_from_token
 from .notifications import deliver_new_alerts
-from .model_comparison import compare_cnn_yolo
 from .database import initialise_database, SessionLocal, Alert
 from .reports import export_metrics, generate_html_report
 from .alerts import check_health_alerts, update_alert_status
@@ -177,12 +176,6 @@ def predictions_forecast(horizon: int = 6):
     except ValueError as exc: raise HTTPException(422, detail=str(exc))
 @app.get("/api/predictions")
 def predictions(): return {"message":"Train a model before generating a forecast."}
-@app.post("/api/models/cnn-yolo-compare")
-def cnn_yolo_compare(epochs: int = 5):
-    try:
-        table, note = compare_cnn_yolo(epochs)
-        return {"results": table.to_dict("records"), "note": note}
-    except ValueError as exc: raise HTTPException(422, detail=str(exc))
 @app.get("/api/alerts")
 def alerts():
     db=SessionLocal(); items=db.query(Alert).all(); db.close(); return [{"alert_id":x.alert_id,"date":x.date,"severity":x.severity,"reason":x.reason,"ndvi_change":x.ndvi_change,"recommended_action":x.recommended_action,"status":x.status} for x in items]
@@ -225,12 +218,17 @@ def report_available_periods():
 
 @app.get("/api/reports/{period}/download")
 def report_download(period: str, format: str = "html", report_date: str | None = None):
+    all_content = series()
     content, report_id = report_content(period, report_date); settings.ensure_output_dirs()
     label = report_id or "all-observations"
     if format == "csv":
         path=Path(export_metrics(content, report_id)); return FileResponse(path, media_type="text/csv", filename=f"forestwatch_{period}_{label}_metrics.csv")
     if format == "html":
-        path=Path(generate_html_report(content, alerts(), period, report_id)); return FileResponse(path, media_type="text/html", filename=f"forestwatch_{period}_{label}_report.html")
+        selected_dates = pd.to_datetime(content["date"], errors="coerce")
+        earliest = selected_dates.min()
+        all_dates = pd.to_datetime(all_content["date"], errors="coerce")
+        previous = all_content.loc[all_dates < earliest].tail(1) if pd.notna(earliest) else None
+        path=Path(generate_html_report(content, alerts(), period, report_id, previous)); return FileResponse(path, media_type="text/html", filename=f"forestwatch_{period}_{label}_report.html")
     raise HTTPException(422, detail="Format must be html or csv.")
 @app.get("/api/reports")
 def reports(): return {"reports_directory":str(settings.output_path / "reports")}

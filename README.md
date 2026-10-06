@@ -260,12 +260,6 @@ Open the Vite address shown in the terminal, normally `http://127.0.0.1:5173`. S
 
 The React dashboard has a local registration and login page. Its email address is the destination for newly created vegetation-health alerts. To enable delivery, fill the `FORESTWATCH_SMTP_*` values in your private `.env` file. Use an application password from your email provider, not your normal account password. If SMTP is not configured, alerts remain visible in the dashboard and no email is sent.
 
-### CNN and YOLO comparison
-
-The **CNN vs YOLO Comparison** tab creates a controlled experiment using the supplied 2024–2025 Gorewada aligned temporal cube and high-confidence change label. It trains a small CNN for patch classification and YOLOv8n for change-region detection, then reports held-out spatial-tile metrics. This dataset has only one labelled period, so the comparison is useful for experimentation only—not an operational accuracy claim. Add independent labelled dates before choosing a model for deployment.
-
----
-
 ## Dataset
 
 ForestWatch is designed to work with locally available satellite observations, including:

@@ -12,6 +12,11 @@ venv/
 .vscode/
 frontend/node_modules/
 frontend/dist/
+node_modules/
+dist/
+runs/
+tmp/
+*.pt
 
 # Runtime products and local satellite imagery can be regenerated or are too
 # large to keep in a source repository.

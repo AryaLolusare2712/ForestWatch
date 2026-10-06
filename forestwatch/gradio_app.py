@@ -17,7 +17,6 @@ from .reports import export_metrics, generate_html_report, percentage_display
 from .alerts import check_health_alerts, update_alert_status, HEALTH_ALERT_THRESHOLD
 from .database import Alert, SessionLocal
 from .preprocessing import preprocessing_summary, prepared_rgb
-from .model_comparison import compare_cnn_yolo
 
 DASHBOARD_CSS = """
 .fw-header{display:flex;align-items:center;gap:14px;padding:22px 24px;border:1px solid #cfe2d2;border-radius:16px;background:linear-gradient(120deg,#eff8f0,#f9fcf8);margin-bottom:14px}.fw-mark{font-size:32px}.fw-title{font-size:28px;font-weight:700;color:#173b25}.fw-subtitle{color:#56705d;margin-top:2px}.fw-region{margin-left:auto;text-align:right;color:#294a34}.fw-region span{color:#617565;font-size:13px}.fw-kpis{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px}.fw-card{border:1px solid #d6e5d8;border-radius:14px;background:#fff;padding:16px}.fw-card-label{font-size:13px;color:#56705d}.fw-card-value{font-size:26px;font-weight:700;color:#173b25;margin:7px 0}.fw-card-detail{font-size:12px;color:#6c7d70}.fw-alert,.fw-empty{border-radius:12px;padding:14px 16px}.fw-alert{background:#fff5e7;border:1px solid #f0cf98;color:#633d0b}.fw-empty{background:#eff8f0;border:1px solid #cfe2d2;color:#294a34}@media(max-width:760px){.fw-header{align-items:flex-start;flex-wrap:wrap}.fw-region{text-align:left;margin-left:0;width:100%}.fw-kpis{grid-template-columns:repeat(2,minmax(130px,1fr))}}
@@ -535,12 +534,6 @@ def build_app():
             forecast_plot=gr.Plot(label="Historical vs future NDVI")
             forecast_status=gr.Markdown()
             forecast_button.click(future_forecast,[trained_model,horizon],[trained_model,forecast_table,forecast_plot,forecast_status])
-        with gr.Tab("CNN vs YOLO Comparison"):
-            gr.Markdown("## CNN vs YOLO Change-Detection Comparison\nTrain a small CNN and YOLOv8n on spatial patches from the supplied **2024–2025 high-confidence change label**. Results are experimental because there is only one labelled time period; use independent labelled dates before operational deployment.")
-            comparison_epochs = gr.Slider(1, 50, value=5, step=1, label="Training epochs for each model")
-            comparison_results = gr.Dataframe(interactive=False, label="Held-out spatial-tile results")
-            comparison_note = gr.Markdown()
-            gr.Button("Train and compare CNN with YOLO", variant="primary").click(compare_cnn_yolo, comparison_epochs, [comparison_results, comparison_note])
         with gr.Tab("Alerts"):
             gr.Markdown("## Vegetation Health Alerts")
             alerts_button = gr.Button("Check vegetation health alerts", variant="primary")
