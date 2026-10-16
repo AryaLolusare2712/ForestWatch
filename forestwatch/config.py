@@ -21,6 +21,9 @@ class Settings:
     smtp_username: str = os.getenv("FORESTWATCH_SMTP_USERNAME", "")
     smtp_password: str = os.getenv("FORESTWATCH_SMTP_PASSWORD", "")
     smtp_from: str = os.getenv("FORESTWATCH_SMTP_FROM", "")
+    supabase_url: str = os.getenv("FORESTWATCH_SUPABASE_URL", "")
+    supabase_service_role_key: str = os.getenv("FORESTWATCH_SUPABASE_SERVICE_ROLE_KEY", "")
+    supabase_bucket: str = os.getenv("FORESTWATCH_SUPABASE_BUCKET", "forestwatch-images")
 
     def ensure_output_dirs(self):
         for name in ("processed", "features", "metrics", "models", "alerts", "reports"):

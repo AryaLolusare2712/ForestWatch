@@ -20,6 +20,7 @@ from datetime import datetime
 import shutil
 from PIL import Image
 from .multisatellite import available as multisatellite_available, comparison as multisatellite_comparison
+from . import cloud_storage
 
 app=FastAPI(title="ForestWatch API", version="1.0.0")
 allowed_origins = [
@@ -38,7 +39,11 @@ app.add_middleware(
 )
 initialise_database()
 
-def inventory(): return scan_dataset(settings.dataset_path)
+def inventory():
+    # Render's filesystem is temporary.  Rebuild its local analysis cache from
+    # Supabase whenever storage credentials have been configured.
+    cloud_storage.sync_to_local()
+    return scan_dataset(settings.dataset_path)
 def series(): return health_scores(ndvi_timeseries(inventory()))
 def json_records(frame):
     """FastAPI-safe records: JavaScript JSON cannot represent NaN or NaT."""
@@ -92,6 +97,15 @@ async def upload_images(files: list[UploadFile] = File(...), image_type: str = F
         target=destination / f"Gorewada_{tokens[image_type]}_{date}_{index}{suffix}"; copy_index=2
         while target.exists(): target=destination / f"Gorewada_{tokens[image_type]}_{date}_{index}_{copy_index}{suffix}"; copy_index+=1
         with target.open("wb") as output: shutil.copyfileobj(file.file, output)
+        try:
+            cloud_storage.upload(
+                target,
+                target.relative_to(settings.dataset_path).as_posix(),
+                file.content_type,
+            )
+        except cloud_storage.CloudStorageError as exc:
+            target.unlink(missing_ok=True)
+            raise HTTPException(503, detail=str(exc)) from exc
         added.append(target.name)
     if not added: raise HTTPException(422, detail="Upload JPG, PNG, TIFF, or JP2 image files.")
     return {"added":len(added), "date":date, "files":added}
