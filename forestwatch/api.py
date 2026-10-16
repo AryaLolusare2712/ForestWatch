@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+import os
 import numpy as np
 import pandas as pd
 import json
@@ -21,7 +22,20 @@ from PIL import Image
 from .multisatellite import available as multisatellite_available, comparison as multisatellite_comparison
 
 app=FastAPI(title="ForestWatch API", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["*"], allow_headers=["*"])
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "FORESTWATCH_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 initialise_database()
 
 def inventory(): return scan_dataset(settings.dataset_path)

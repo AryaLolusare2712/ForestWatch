@@ -256,6 +256,18 @@ npm run dev
 
 Open the Vite address shown in the terminal, normally `http://127.0.0.1:5173`. Select an earlier and later observation date to update the GIS period. The dashboard reports actual NDVI-index change; it does not scale values to −100% or +100%.
 
+### Deploy the React dashboard and API
+
+Deploy the React/Vite dashboard to **Vercel** and the FastAPI backend to **Render**:
+
+1. Create a Render **Web Service** from this GitHub repository. Set the build command to `pip install -r requirements.txt` and the start command to `uvicorn forestwatch.api:app --host 0.0.0.0 --port $PORT`.
+2. Add a persistent Render disk at `/var/data`. Set `FORESTWATCH_DATASET=/var/data/dataset` and `FORESTWATCH_OUTPUT=/var/data/data`. Persistent storage is important because satellite uploads, reports, and the SQLite database must survive restarts.
+3. When Render gives you an API URL, set `FORESTWATCH_ALLOWED_ORIGINS` to your Vercel URL, for example `https://your-forestwatch.vercel.app`.
+4. Create a Vercel project with `frontend` as its root directory. Add the Vercel environment variable `VITE_FORESTWATCH_API` with the Render API URL, for example `https://your-forestwatch-api.onrender.com`, then deploy.
+5. After the first backend deployment, upload the dated NDVI and true-colour images using the dashboard. The repository does not contain the satellite dataset, so it must be uploaded to the persistent disk separately.
+
+Do not commit `.env` files or SMTP passwords. Configure them only in the Render environment-variable settings.
+
 ### Login and email alerts
 
 The React dashboard has a local registration and login page. Its email address is the destination for newly created vegetation-health alerts. To enable delivery, fill the `FORESTWATCH_SMTP_*` values in your private `.env` file. Use an application password from your email provider, not your normal account password. If SMTP is not configured, alerts remain visible in the dashboard and no email is sent.
