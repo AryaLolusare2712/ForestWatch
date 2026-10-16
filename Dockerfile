@@ -1,5 +1,10 @@
 FROM python:3.11-slim
 WORKDIR /app
+
+# Rasterio's Linux wheel needs the Expat runtime library at application start.
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
