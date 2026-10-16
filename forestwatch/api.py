@@ -38,12 +38,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 initialise_database()
+cloud_storage.start_background_sync()
 
 def inventory():
-    # Render's filesystem is temporary.  Rebuild its local analysis cache from
-    # Supabase whenever storage credentials have been configured.
-    cloud_storage.sync_to_local()
-    return scan_dataset(settings.dataset_path)
+    # Cloud object names provide dates immediately; the full files are warmed
+    # into Render's temporary cache in the background.
+    return cloud_storage.inventory() if cloud_storage.enabled() else scan_dataset(settings.dataset_path)
 def series(): return health_scores(ndvi_timeseries(inventory()))
 def json_records(frame):
     """FastAPI-safe records: JavaScript JSON cannot represent NaN or NaT."""
@@ -54,7 +54,13 @@ def json_records(frame):
 def record_for_date(date, category="ndvi"):
     rows=inventory(); subset=rows[(rows.category==category)&(rows.date==date)]
     if subset.empty: raise HTTPException(404, detail=f"No {category} image found for {date}")
-    return subset.iloc[0]
+    row = subset.iloc[0].copy()
+    if cloud_storage.enabled():
+        try:
+            row["path"] = str(cloud_storage.ensure_local(row["relative_path"]))
+        except cloud_storage.CloudStorageError as exc:
+            raise HTTPException(503, detail=str(exc)) from exc
+    return row
 
 @app.get("/")
 def root():

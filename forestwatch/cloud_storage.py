@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock, Thread
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -16,6 +17,8 @@ from urllib.request import Request, urlopen
 from .config import settings
 
 _synced = False
+_sync_started = False
+_sync_lock = Lock()
 
 
 class CloudStorageError(RuntimeError):
@@ -74,6 +77,55 @@ def _local_path(object_name: str) -> Path:
     return target
 
 
+def inventory():
+    """Return a lightweight file inventory without downloading all imagery."""
+    if not enabled():
+        return None
+    # Imported lazily to avoid a module-import cycle.
+    from .dataset_scanner import classify, extract_date
+    rows = []
+    for object_name in _objects():
+        target = _local_path(object_name)
+        rows.append({
+            "path": str(target),
+            "relative_path": object_name,
+            "filename": target.name,
+            "category": classify(Path(object_name)),
+            "date": extract_date(object_name),
+            "format": target.suffix.lower(),
+            "size_bytes": None,
+        })
+    import pandas as pd
+    return pd.DataFrame(rows, columns=[
+        "path", "relative_path", "filename", "category", "date", "format", "size_bytes",
+    ])
+
+
+def ensure_local(object_name: str) -> Path:
+    """Download one cloud image when a map or analysis actually needs it."""
+    target = _local_path(object_name)
+    if target.exists():
+        return target
+    body = _request(
+        f"/storage/v1/object/{quote(settings.supabase_bucket, safe='')}/{quote(object_name, safe='/')}"
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(body or b"")
+    return target
+
+
+def start_background_sync() -> None:
+    """Warm the temporary Render cache without delaying dashboard selectors."""
+    global _sync_started
+    if not enabled():
+        return
+    with _sync_lock:
+        if _sync_started:
+            return
+        _sync_started = True
+    Thread(target=sync_to_local, daemon=True).start()
+
+
 def sync_to_local() -> int:
     """Download cloud files that are absent from this server's temporary cache."""
     global _synced
@@ -90,11 +142,7 @@ def sync_to_local() -> int:
 
     def download(entry: tuple[str, Path]) -> None:
         object_name, target = entry
-        body = _request(
-            f"/storage/v1/object/{quote(settings.supabase_bucket, safe='')}/{quote(object_name, safe='/')}"
-        )
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(body or b"")
+        ensure_local(object_name)
 
     # A free Render instance has limited CPU, but parallel network transfers
     # prevent the dashboard's first cloud sync from waiting once per image.
