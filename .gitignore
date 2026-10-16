@@ -26,7 +26,6 @@ dataset/
 *.sqlite
 *.sqlite3
 *.csv
-*.html
 
 # Jupyter's temporary notebook state
 .ipynb_checkpoints/
