@@ -7,6 +7,7 @@ analysis and mirrors newly uploaded images back to Supabase.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -80,19 +81,27 @@ def sync_to_local() -> int:
         return 0
     if _synced:
         return 0
-    count = 0
+    missing = []
     for object_name in _objects():
         target = _local_path(object_name)
         if target.exists():
             continue
+        missing.append((object_name, target))
+
+    def download(entry: tuple[str, Path]) -> None:
+        object_name, target = entry
         body = _request(
             f"/storage/v1/object/{quote(settings.supabase_bucket, safe='')}/{quote(object_name, safe='/')}"
         )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body or b"")
-        count += 1
+
+    # A free Render instance has limited CPU, but parallel network transfers
+    # prevent the dashboard's first cloud sync from waiting once per image.
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(download, missing))
     _synced = True
-    return count
+    return len(missing)
 
 
 def upload(local_path: Path, object_name: str, content_type: str | None = None) -> None:
