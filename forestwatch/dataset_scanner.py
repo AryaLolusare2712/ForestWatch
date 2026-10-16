@@ -39,6 +39,15 @@ def scan_dataset(dataset_path: str | Path, inspect_images: bool = False) -> pd.D
                "category": classify(path), "date": extract_date(str(path)), "format": path.suffix.lower(), "size_bytes": path.stat().st_size}
         if inspect_images and path.suffix.lower() in IMAGE_EXTENSIONS: row.update(image_details(path))
         rows.append(row)
+    # Keep the inventory schema available even when a cloud deployment starts
+    # without any uploaded scenes.  API consumers can then return an empty list
+    # instead of failing while trying to select the ``category`` or ``date``
+    # columns.
+    if not rows:
+        return pd.DataFrame(columns=[
+            "path", "relative_path", "filename", "category", "date",
+            "format", "size_bytes",
+        ])
     return pd.DataFrame(rows)
 
 def inventory_summary(inventory: pd.DataFrame) -> dict:

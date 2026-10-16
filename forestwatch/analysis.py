@@ -105,7 +105,7 @@ def ndvi_timeseries(inventory: pd.DataFrame) -> pd.DataFrame:
             continue
         quality = "NDVI proxy with Sentinel-1 radar filling interior optical gaps" if stats["radar_gap_fill"]["used"] else "JPEG NDVI display proxy"
         rows.append({"date":row.date, "path":row.path, "ndvi_mean":stats["mean"], "ndvi_median":stats["median"], "ndvi_std":stats["std"], "data_quality":quality})
-    result=pd.DataFrame(rows)
+    result=pd.DataFrame(rows, columns=["date", "path", "ndvi_mean", "ndvi_median", "ndvi_std", "data_quality"])
     if not result.empty: result["ndvi_change"] = result.ndvi_mean.diff()
     return result
 
