@@ -4,7 +4,10 @@ import "./styles.css";
 import "./charts.css";
 import "./auth.css";
 
-const API = import.meta.env.VITE_FORESTWATCH_API || "http://127.0.0.1:8000";
+// In production use Vercel's same-origin /api proxy.  This avoids browser
+// cross-origin failures between the public dashboard and the Render backend.
+// Local Vite development continues to call the local FastAPI service.
+const API = import.meta.env.DEV ? (import.meta.env.VITE_FORESTWATCH_API || "http://127.0.0.1:8000") : "";
 const pct = (value) => `${Number(value || 0).toFixed(2)}%`;
 
 function Dashboard({account, onLogout}) {
