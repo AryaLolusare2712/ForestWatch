@@ -3,10 +3,10 @@ from __future__ import annotations
 import pandas as pd
 from .database import Alert, SessionLocal, initialise_database
 
-HEALTH_ALERT_THRESHOLD = 35.0
+HEALTH_ALERT_THRESHOLD = 40.0
 
 def check_health_alerts(scores: pd.DataFrame) -> pd.DataFrame:
-    """Store one alert per observation whose computed health score is below 35."""
+    """Store one alert per observation whose computed health score is below 40."""
     initialise_database()
     below = scores.dropna(subset=["forest_health_score", "date"])
     below = below[below.forest_health_score < HEALTH_ALERT_THRESHOLD].drop_duplicates("date", keep="last")

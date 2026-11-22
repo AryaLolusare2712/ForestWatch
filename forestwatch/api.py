@@ -16,7 +16,7 @@ from .auth import register, login, user_from_token
 from .notifications import deliver_new_alerts
 from .database import initialise_database, SessionLocal, Alert
 from .reports import export_metrics, generate_html_report
-from .alerts import check_health_alerts, update_alert_status
+from .alerts import check_health_alerts, update_alert_status, HEALTH_ALERT_THRESHOLD
 from pathlib import Path
 from datetime import datetime
 import shutil
@@ -268,7 +268,7 @@ def alerts_check(authorization: str | None = Header(default=None)):
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
     user = user_from_token(token)
     delivery = deliver_new_alerts(user) if user else {"sent": 0, "configured": False, "message": "Sign in to receive email alerts."}
-    return {"threshold": 35, "active_alerts": int(len(active)), "message": "Alerts are created when vegetation health score is below 35.", "email_delivery": delivery}
+    return {"threshold": HEALTH_ALERT_THRESHOLD, "active_alerts": int(len(active)), "message": f"Alerts are created when vegetation health score is below {HEALTH_ALERT_THRESHOLD:.0f}.", "email_delivery": delivery}
 @app.post("/api/reports/{period}")
 def report(period: str):
     if period not in {"monthly","yearly"}: raise HTTPException(422,detail="period must be monthly or yearly")
