@@ -141,6 +141,8 @@ def yearly_ndvi_overview(inventory: pd.DataFrame, preview_size: int = 240, inter
 def health_scores(series: pd.DataFrame) -> pd.DataFrame:
     result=series.copy()
     if result.empty: return result
+    if "ndvi_change" not in result:
+        result["ndvi_change"] = result.ndvi_mean.diff()
     scaled=np.clip((result.ndvi_mean + 1)/2*100, 0, 100)
     penalty=np.clip(-result.ndvi_change.fillna(0)*100, 0, 20)
     result["forest_health_score"]=(scaled-penalty).clip(0,100)

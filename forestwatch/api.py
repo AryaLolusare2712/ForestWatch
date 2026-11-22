@@ -2,9 +2,11 @@ from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os
+import re
 import numpy as np
 import pandas as pd
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .config import settings
 from .dataset_scanner import scan_dataset, inventory_summary
 from .analysis import ndvi_timeseries, yearly_ndvi_overview, health_scores, ndvi_statistics, change_detection
@@ -45,6 +47,51 @@ def inventory():
     # into Render's temporary cache in the background.
     return cloud_storage.inventory() if cloud_storage.enabled() else scan_dataset(settings.dataset_path)
 def series(): return health_scores(ndvi_timeseries(inventory()))
+
+def alert_series():
+    """Fast monthly health series for alert checks on small cloud instances."""
+    return health_scores(yearly_ndvi_overview(inventory(), interval="monthly"))
+
+def _report_records(period: str, report_date: str | None):
+    if period not in {"monthly", "yearly"}:
+        raise HTTPException(422, detail="Choose monthly or yearly.")
+    records = inventory().loc[lambda frame: (frame.category == "ndvi") & frame.date.notna()].copy()
+    if records.empty:
+        raise HTTPException(404, detail="No NDVI observations are available for reporting.")
+    records["_date"] = pd.to_datetime(records.date, errors="coerce")
+    records = records.dropna(subset=["_date"]).sort_values("_date")
+    if not report_date:
+        return records.drop(columns="_date"), pd.DataFrame(columns=records.columns), None
+    pattern = r"^\d{4}-\d{2}$" if period == "monthly" else r"^\d{4}$"
+    if not re.match(pattern, report_date):
+        required = "YYYY-MM" if period == "monthly" else "YYYY"
+        raise HTTPException(422, detail=f"Use {required} for the selected report.")
+    label = records._date.dt.strftime("%Y-%m" if period == "monthly" else "%Y")
+    selected = records.loc[label == report_date].copy()
+    if selected.empty:
+        raise HTTPException(404, detail=f"No NDVI observations are available for {report_date}.")
+    previous = records.loc[records._date < selected._date.min()].tail(1).copy()
+    return selected.drop(columns="_date"), previous.drop(columns="_date"), report_date
+
+def _materialise_report_records(records: pd.DataFrame) -> pd.DataFrame:
+    """Fetch only the selected report scenes, not the complete cloud dataset."""
+    ready = records.copy()
+    if ready.empty or not cloud_storage.enabled():
+        return ready
+    try:
+        with ThreadPoolExecutor(max_workers=min(4, len(ready))) as executor:
+            futures = {executor.submit(cloud_storage.ensure_local, row.relative_path): index for index, row in ready.iterrows()}
+            for future in as_completed(futures):
+                ready.at[futures[future], "path"] = str(future.result())
+    except cloud_storage.CloudStorageError as exc:
+        raise HTTPException(503, detail=f"Cloud image storage is unavailable: {exc}") from exc
+    return ready
+
+def report_series(period: str, report_date: str | None):
+    selected, previous, report_id = _report_records(period, report_date)
+    selected_series = health_scores(ndvi_timeseries(_materialise_report_records(selected)))
+    previous_series = health_scores(ndvi_timeseries(_materialise_report_records(previous))) if not previous.empty else None
+    return selected_series, previous_series, report_id
 def json_records(frame):
     """FastAPI-safe records: JavaScript JSON cannot represent NaN or NaT."""
     clean = frame.copy().replace([np.inf, -np.inf], np.nan)
@@ -217,7 +264,7 @@ def alerts():
 def alert_status(alert_date: str, status: str): return {"message": update_alert_status(alert_date, status)}
 @app.post("/api/alerts/check")
 def alerts_check(authorization: str | None = Header(default=None)):
-    active = check_health_alerts(series())
+    active = check_health_alerts(alert_series())
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
     user = user_from_token(token)
     delivery = deliver_new_alerts(user) if user else {"sent": 0, "configured": False, "message": "Sign in to receive email alerts."}
@@ -225,7 +272,8 @@ def alerts_check(authorization: str | None = Header(default=None)):
 @app.post("/api/reports/{period}")
 def report(period: str):
     if period not in {"monthly","yearly"}: raise HTTPException(422,detail="period must be monthly or yearly")
-    return {"html_report":generate_html_report(series(),alerts(),period),"metrics_csv":export_metrics(series())}
+    values = series()
+    return {"html_report":generate_html_report(values,alerts(),period),"metrics_csv":export_metrics(values)}
 
 def report_content(period: str, report_date: str | None, content: pd.DataFrame | None = None):
     if period not in {"monthly", "yearly"}:
@@ -254,16 +302,11 @@ def report_available_periods():
 
 @app.get("/api/reports/{period}/download")
 def report_download(period: str, format: str = "html", report_date: str | None = None):
-    all_content = series()
-    content, report_id = report_content(period, report_date, all_content); settings.ensure_output_dirs()
+    content, previous, report_id = report_series(period, report_date); settings.ensure_output_dirs()
     label = report_id or "all-observations"
     if format == "csv":
         path=Path(export_metrics(content, report_id)); return FileResponse(path, media_type="text/csv", filename=f"forestwatch_{period}_{label}_metrics.csv")
     if format == "html":
-        selected_dates = pd.to_datetime(content["date"], errors="coerce")
-        earliest = selected_dates.min()
-        all_dates = pd.to_datetime(all_content["date"], errors="coerce")
-        previous = all_content.loc[all_dates < earliest].tail(1) if pd.notna(earliest) else None
         path=Path(generate_html_report(content, alerts(), period, report_id, previous)); return FileResponse(path, media_type="text/html", filename=f"forestwatch_{period}_{label}_report.html")
     raise HTTPException(422, detail="Format must be html or csv.")
 @app.get("/api/reports")
