@@ -227,10 +227,12 @@ def report(period: str):
     if period not in {"monthly","yearly"}: raise HTTPException(422,detail="period must be monthly or yearly")
     return {"html_report":generate_html_report(series(),alerts(),period),"metrics_csv":export_metrics(series())}
 
-def report_content(period: str, report_date: str | None):
+def report_content(period: str, report_date: str | None, content: pd.DataFrame | None = None):
     if period not in {"monthly", "yearly"}:
         raise HTTPException(422, detail="Choose monthly or yearly.")
-    content = series()
+    # The download route has already calculated the full time series. Reusing
+    # it avoids decoding every cloud-hosted NDVI image a second time.
+    content = series() if content is None else content
     if not report_date:
         return content, None
     dates = pd.to_datetime(content["date"], errors="coerce")
@@ -253,7 +255,7 @@ def report_available_periods():
 @app.get("/api/reports/{period}/download")
 def report_download(period: str, format: str = "html", report_date: str | None = None):
     all_content = series()
-    content, report_id = report_content(period, report_date); settings.ensure_output_dirs()
+    content, report_id = report_content(period, report_date, all_content); settings.ensure_output_dirs()
     label = report_id or "all-observations"
     if format == "csv":
         path=Path(export_metrics(content, report_id)); return FileResponse(path, media_type="text/csv", filename=f"forestwatch_{period}_{label}_metrics.csv")
