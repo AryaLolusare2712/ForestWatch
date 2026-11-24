@@ -16,20 +16,22 @@ from PIL import Image, ImageDraw
 from .analysis import ndvi_proxy
 
 
-WEIGHTS_PATH = Path(__file__).resolve().parent / "models" / "yolov8n_vegetation_change.pt"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "yolov8n_vegetation_change.onnx"
 MODEL_INPUT_SIZE = 128
-CONFIDENCE_THRESHOLD = 0.25
+# The labelled dataset is very small, so a low review threshold is used. The
+# boxes are deliberately labelled as *probable* changes in the interface.
+CONFIDENCE_THRESHOLD = 0.001
 
 
 @lru_cache(maxsize=1)
 def _model():
     try:
-        from ultralytics import YOLO
+        import onnxruntime as ort
     except ImportError as exc:
-        raise RuntimeError(f"YOLO runtime is unavailable on this service: {exc}") from exc
-    if not WEIGHTS_PATH.is_file():
+        raise RuntimeError(f"YOLO ONNX runtime is unavailable on this service: {exc}") from exc
+    if not MODEL_PATH.is_file():
         raise RuntimeError("The packaged YOLOv8n vegetation-change model is unavailable.")
-    return YOLO(str(WEIGHTS_PATH))
+    return ort.InferenceSession(str(MODEL_PATH), providers=["CPUExecutionProvider"])
 
 
 def _change_image(earlier_ndvi: str, later_ndvi: str) -> np.ndarray:
@@ -54,22 +56,44 @@ def _change_image(earlier_ndvi: str, later_ndvi: str) -> np.ndarray:
 def detect_change_regions(earlier_ndvi: str, later_ndvi: str) -> list[dict]:
     """Run the packaged YOLOv8n detector and return normalised bounding boxes."""
     image = _change_image(earlier_ndvi, later_ndvi)
-    result = _model().predict(image, imgsz=MODEL_INPUT_SIZE, conf=CONFIDENCE_THRESHOLD, verbose=False)[0]
-    height, width = image.shape[:2]
+    resized = np.asarray(Image.fromarray(image).resize((MODEL_INPUT_SIZE, MODEL_INPUT_SIZE), Image.Resampling.BILINEAR), dtype=np.float32)
+    inputs = (resized.transpose(2, 0, 1)[None] / 255.0).astype(np.float32)
+    session = _model()
+    output = session.run(None, {session.get_inputs()[0].name: inputs})[0][0].T
+    candidates = []
+    for center_x, center_y, box_width, box_height, confidence in output:
+        if float(confidence) < CONFIDENCE_THRESHOLD:
+            continue
+        left = max(0.0, (float(center_x) - float(box_width) / 2) / MODEL_INPUT_SIZE)
+        top = max(0.0, (float(center_y) - float(box_height) / 2) / MODEL_INPUT_SIZE)
+        right = min(1.0, (float(center_x) + float(box_width) / 2) / MODEL_INPUT_SIZE)
+        bottom = min(1.0, (float(center_y) + float(box_height) / 2) / MODEL_INPUT_SIZE)
+        candidates.append((float(confidence), left, top, right, bottom))
+    # Small deterministic non-maximum suppression prevents overlapping boxes
+    # without importing the much heavier PyTorch/Ultralytics runtime.
     regions: list[dict] = []
-    if result.boxes is None:
-        return regions
-    for box in result.boxes:
-        x1, y1, x2, y2 = box.xyxy[0].tolist()
-        confidence = float(box.conf[0])
+    for confidence, left, top, right, bottom in sorted(candidates, reverse=True):
+        overlaps = False
+        for chosen in regions:
+            ix1, iy1 = max(left, chosen["x"]), max(top, chosen["y"])
+            ix2, iy2 = min(right, chosen["x"] + chosen["width"]), min(bottom, chosen["y"] + chosen["height"])
+            intersection = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+            union = (right - left) * (bottom - top) + chosen["width"] * chosen["height"] - intersection
+            if union and intersection / union >= 0.45:
+                overlaps = True
+                break
+        if overlaps:
+            continue
         regions.append({
             "label": "probable vegetation change",
             "confidence": round(confidence, 4),
-            "x": round(max(0, x1) / width, 5),
-            "y": round(max(0, y1) / height, 5),
-            "width": round(min(width, x2) / width - max(0, x1) / width, 5),
-            "height": round(min(height, y2) / height - max(0, y1) / height, 5),
+            "x": round(left, 5),
+            "y": round(top, 5),
+            "width": round(right - left, 5),
+            "height": round(bottom - top, 5),
         })
+        if len(regions) == 20:
+            break
     return regions
 
 
