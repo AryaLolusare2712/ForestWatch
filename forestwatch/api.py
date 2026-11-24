@@ -29,6 +29,7 @@ import shutil
 from PIL import Image
 from .multisatellite import available as multisatellite_available, comparison as multisatellite_comparison
 from . import cloud_storage
+from .yolo_detection import yolo_change_overlay
 
 app=FastAPI(title="ForestWatch API", version="1.0.0")
 allowed_origins = [
@@ -254,6 +255,20 @@ def gis_change_overlay(earlier_date: str, later_date: str):
         Image.alpha_composite(base, layer).save(output, "PNG")
         return FileResponse(output, media_type="image/png", filename=output.name)
     except ValueError as exc: raise HTTPException(422, detail=str(exc))
+
+@app.get("/api/gis/yolo-change-overlay/{earlier_date}/{later_date}")
+def gis_yolo_change_overlay(earlier_date: str, later_date: str):
+    """YOLOv8n probable-change boxes over the selected later true-colour scene."""
+    try:
+        earlier_ndvi = record_for_date(earlier_date)
+        later_ndvi = record_for_date(later_date)
+        later_scene = record_for_date(later_date, "true_color")
+        settings.ensure_output_dirs()
+        output = settings.output_path / "metrics" / f"yolo_change_overlay_{earlier_date}_to_{later_date}.png"
+        image, _ = yolo_change_overlay(earlier_ndvi.path, later_ndvi.path, later_scene.path, output)
+        return FileResponse(image, media_type="image/png", filename=image.name)
+    except ValueError as exc: raise HTTPException(422, detail=str(exc))
+    except RuntimeError as exc: raise HTTPException(503, detail=str(exc))
 @app.post("/api/predictions/train")
 def prediction_train(request: PredictionRequest):
     try:
