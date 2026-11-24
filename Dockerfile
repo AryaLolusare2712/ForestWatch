@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# Rasterio's Linux wheel needs the Expat runtime library at application start.
-RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 \
+# Rasterio needs Expat; OpenCV/YOLO needs libGL and GLib when drawing or
+# preprocessing images in the minimal Render container.
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
