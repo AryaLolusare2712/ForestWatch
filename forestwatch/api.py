@@ -10,7 +10,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .config import settings
 from .dataset_scanner import scan_dataset, inventory_summary
 from .analysis import ndvi_timeseries, yearly_ndvi_overview, health_scores, ndvi_statistics, change_detection
-from .prediction import train_ndvi_model, forecast_future_ndvi
+from .prediction import (
+    train_ndvi_model,
+    forecast_future_ndvi,
+    load_pretrained_forecast_model,
+    save_pretrained_forecast_model,
+    train_pretrained_forecast_model,
+)
 from .schemas import ChangeRequest, PredictionRequest, Credentials
 from .auth import register, login, user_from_token
 from .notifications import deliver_new_alerts
@@ -47,6 +53,13 @@ def inventory():
     # into Render's temporary cache in the background.
     return cloud_storage.inventory() if cloud_storage.enabled() else scan_dataset(settings.dataset_path)
 def series(): return health_scores(ndvi_timeseries(inventory()))
+def prediction_series():
+    """Compact monthly history used by the packaged forecast model.
+
+    This intentionally uses thumbnails rather than decoding every full-sized
+    source image, keeping forecast requests responsive on free hosting.
+    """
+    return yearly_ndvi_overview(inventory(), interval="monthly")
 
 def alert_series():
     """Fast monthly health series for alert checks on small cloud instances."""
@@ -243,18 +256,28 @@ def gis_change_overlay(earlier_date: str, later_date: str):
     except ValueError as exc: raise HTTPException(422, detail=str(exc))
 @app.post("/api/predictions/train")
 def prediction_train(request: PredictionRequest):
-    try: _,metrics,_=train_ndvi_model(series(),request.model); return metrics
+    try:
+        values = prediction_series()
+        _, metrics, _ = train_ndvi_model(values, request.model)
+        # A manual training request deliberately refreshes the persisted model.
+        if request.model == "Random Forest":
+            bundle = train_pretrained_forecast_model(values)
+            save_pretrained_forecast_model(bundle)
+            metrics["pretrained_model_refreshed"] = True
+        return metrics
     except ValueError as exc: raise HTTPException(422,detail=str(exc))
 @app.post("/api/predictions/generate")
 def prediction_generate(request: PredictionRequest): return prediction_train(request)
 @app.get("/api/predictions/forecast")
 def predictions_forecast(horizon: int = 6):
     try:
-        model, _, _ = train_ndvi_model(series(), "Random Forest", additional_trees=600)
-        output = forecast_future_ndvi(model, series(), horizon)
+        # Forecasting loads the packaged model: it must never start a new
+        # training job just because a user opens the Predictions page.
+        bundle = load_pretrained_forecast_model()
+        output = forecast_future_ndvi(bundle["model"], prediction_series(), horizon)
         output["predicted_ndvi_percent"] = (output.predicted_ndvi * 100).round(2)
         return json_records(output)
-    except ValueError as exc: raise HTTPException(422, detail=str(exc))
+    except (ValueError, FileNotFoundError) as exc: raise HTTPException(422, detail=str(exc))
 @app.get("/api/predictions")
 def predictions(): return {"message":"Train a model before generating a forecast."}
 @app.get("/api/alerts")
