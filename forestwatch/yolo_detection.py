@@ -26,7 +26,7 @@ def _model():
     try:
         from ultralytics import YOLO
     except ImportError as exc:
-        raise RuntimeError("YOLO runtime is not installed on this service.") from exc
+        raise RuntimeError(f"YOLO runtime is unavailable on this service: {exc}") from exc
     if not WEIGHTS_PATH.is_file():
         raise RuntimeError("The packaged YOLOv8n vegetation-change model is unavailable.")
     return YOLO(str(WEIGHTS_PATH))

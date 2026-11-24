@@ -11,4 +11,9 @@ scikit-learn
 sqlalchemy
 rasterio
 matplotlib
-ultralytics
+# CPU-only YOLO runtime for the free Render web service.  Explicit versions
+# avoid a Docker cache resolving Ultralytics without its PyTorch dependency.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+ultralytics==8.3.0
