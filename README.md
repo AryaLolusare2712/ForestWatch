@@ -1,5 +1,17 @@
 # ForestWatch
 
+## Architecture
+
+```mermaid
+flowchart LR
+  I[Satellite observations] --> A[FastAPI analysis service]
+  A --> P[Preprocessing and NDVI analysis]
+  P --> C[Change detection and alerts]
+  A --> D[SQLite and persistent storage]
+  A --> F[React GIS dashboard]
+  F --> U[Monitoring user]
+```
+
 > Satellite-based forest monitoring and vegetation-change analysis.
 
 [![Live dashboard](https://img.shields.io/badge/Live%20dashboard-Vercel-22c55e?style=for-the-badge&logo=vercel&logoColor=white)](https://forest-watch-mu.vercel.app/)
@@ -20,6 +32,7 @@ ForestWatch helps users compare dated satellite observations, evaluate vegetatio
 
 - [Live dashboard](#live-dashboard)
 - [What it does](#what-it-does)
+- [Architecture](#architecture)
 - [How it works](#how-it-works)
 - [Run locally](#run-locally)
 - [Configuration](#configuration)
