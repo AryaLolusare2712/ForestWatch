@@ -1,5 +1,9 @@
 # ForestWatch
 
+## Project contribution
+
+Applies satellite imagery, vegetation indicators, and change analysis to make forest-health monitoring more accessible and easier to interpret.
+
 ## Architecture
 
 ```mermaid
