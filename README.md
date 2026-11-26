@@ -4,9 +4,27 @@
 
 [![Live dashboard](https://img.shields.io/badge/Live%20dashboard-Vercel-22c55e?style=for-the-badge&logo=vercel&logoColor=white)](https://forest-watch-mu.vercel.app/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-facc15?style=for-the-badge)](LICENSE)
 
 ForestWatch helps users compare dated satellite observations, evaluate vegetation-health indicators, surface potential change, and prepare monitoring insights. It combines a React GIS dashboard with a FastAPI service and a local, dataset-driven analysis workflow.
+
+| | |
+| --- | --- |
+| **Live app** | [Open ForestWatch](https://forest-watch-mu.vercel.app/) |
+| **Dashboard** | React + Vite |
+| **Analysis API** | FastAPI |
+| **Primary inputs** | Dated Sentinel-1 / Sentinel-2 imagery |
+
+## Contents
+
+- [Live dashboard](#live-dashboard)
+- [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [Run locally](#run-locally)
+- [Configuration](#configuration)
+- [API at a glance](#api-at-a-glance)
+- [Deployment](#deployment)
 
 ## Live dashboard
 
@@ -143,6 +161,31 @@ Open the Vite URL shown in the terminal—normally [http://127.0.0.1:5173](http:
 python -m forestwatch.gradio_app
 ```
 
+## Configuration
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `FORESTWATCH_DATASET` | Root directory for source observations | `dataset` |
+| `FORESTWATCH_OUTPUT` | Directory for generated outputs | `data` |
+| `FORESTWATCH_DECREASE` | NDVI change threshold used for decrease detection | `-0.15` |
+| `FORESTWATCH_ALLOWED_ORIGINS` | Comma-separated frontend origins permitted to call the API | `http://localhost:5173` |
+| `FORESTWATCH_SUPABASE_*` | Optional private storage integration | See `.env.example` |
+| `FORESTWATCH_SMTP_*` | Optional email-alert configuration | See `.env.example` |
+
+Copy `.env.example` rather than creating values from scratch; it documents every supported option.
+
+## API at a glance
+
+With the API running, interactive documentation is available at [`/docs`](http://127.0.0.1:8000/docs).
+
+| Endpoint group | Examples | Purpose |
+| --- | --- | --- |
+| Health and inventory | `/api/health`, `/api/dataset/inventory` | Verify service status and discover available data |
+| GIS and imagery | `/api/gis/dashboard`, `/api/gis/true-colour/{date}` | Supply the dashboard with selected-period imagery and metrics |
+| Analysis | `/api/ndvi/*`, `/api/change-detection/*` | Retrieve NDVI observations and change results |
+| Alerts and reports | `/api/alerts`, `/api/reports/{period}` | Review health alerts and create monitoring reports |
+| Prediction | `/api/predictions/*` | Train and retrieve experimental forecasts |
+
 ## Dataset notes
 
 ForestWatch works with dated Sentinel-1 and Sentinel-2 observations. Organise source material by date so the dashboard can compare periods consistently.
@@ -167,6 +210,8 @@ The reference deployment separates the dashboard and API:
 2. Attach persistent storage for the dataset, uploads, reports, and SQLite data.
 3. Set `FORESTWATCH_ALLOWED_ORIGINS` to the dashboard URL.
 4. Deploy `frontend/` to Vercel and set `VITE_FORESTWATCH_API` to the API URL.
+
+> **Security note:** keep service-role keys and SMTP credentials on the backend host only. They must never be exposed in the Vite frontend or committed to Git.
 
 ## Responsible interpretation
 
