@@ -1,215 +1,110 @@
 # ForestWatch
 
-### Satellite-Based Forest Monitoring & Vegetation Change Prediction
+> Satellite-based forest monitoring and vegetation-change analysis.
 
-ForestWatch is an intelligent forest-monitoring application that uses satellite imagery, vegetation indices, and machine learning to help users analyze forest health, identify potential vegetation degradation, and understand changes over time.
+[![Live dashboard](https://img.shields.io/badge/Live%20dashboard-Vercel-22c55e?style=for-the-badge&logo=vercel&logoColor=white)](https://forest-watch-mu.vercel.app/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-facc15?style=for-the-badge)](LICENSE)
 
-The platform combines a Gradio dashboard with a FastAPI backend to provide an interactive environment for satellite-image analysis, vegetation monitoring, forecasting, alerts, and report generation.
+ForestWatch helps users compare dated satellite observations, evaluate vegetation-health indicators, surface potential change, and prepare monitoring insights. It combines a React GIS dashboard with a FastAPI service and a local, dataset-driven analysis workflow.
 
-> **Project Status:** Active development
+## Live dashboard
 
-> **Application Type:** AI-powered geospatial monitoring
-
-> **Interface:** Gradio
-
-> **Backend:** FastAPI
-
----
-
-## Live Preview
+Explore the deployed app: **[forest-watch-mu.vercel.app](https://forest-watch-mu.vercel.app/)**
 
 <p align="center">
-  <img src="docs/screenshots/forestwatch-dashboard.png" alt="ForestWatch deployed sign-in screen" width="100%">
+  <img src="docs/screenshots/forestwatch-dashboard.png" alt="ForestWatch dashboard showing satellite imagery, change metrics, and a selected-period distribution chart" width="100%">
 </p>
 
----
+## What it does
 
-## Overview
+- Compares earlier and later satellite observations.
+- Calculates vegetation-health and NDVI-based change indicators.
+- Displays stable, decrease, and increase areas in an interactive dashboard.
+- Shows true-colour imagery alongside change summaries.
+- Supports alerts, reporting, prediction experiments, and image uploads.
+- Keeps preprocessing non-destructive and records a processing manifest.
 
-Forests play a vital role in maintaining biodiversity, regulating climate, and supporting ecosystems. Monitoring forest health over large areas can be challenging when relying solely on manual inspections.
-
-ForestWatch aims to simplify this process by allowing users to explore historical satellite observations, analyze vegetation health using NDVI, compare observations from different dates, and generate insights that can support further investigation.
-
-The system is designed as a local, extensible platform for experimenting with satellite-based environmental monitoring.
-
-## Key Features
-
-### Forest Health Overview
-
-* View the latest available satellite observation.
-* Explore vegetation-health summaries and historical trends.
-* Review potential degradation indicators and active alerts.
-
-### Satellite Image Analysis
-
-* Work with locally stored Sentinel-1 and Sentinel-2 imagery.
-* Upload dated satellite observations through the dashboard.
-* Preprocess source imagery non-destructively before analysis.
-* Explore NDVI and true-color imagery.
-
-### NDVI-Based Vegetation Monitoring
-
-* Calculate and visualize vegetation-related statistics.
-* Examine vegetation-health patterns across observations.
-* Identify areas with potentially reduced vegetation health.
-
-### Change Detection
-
-* Compare satellite observations from two dates.
-* Analyze changes in vegetation-related indicators.
-* Export change summaries for further analysis.
-
-### Vegetation Prediction
-
-* Train a local prediction model using historical observations.
-* Generate future NDVI estimates based on available historical data.
-* Explore possible vegetation trends over time.
-
-### GIS & Multi-Satellite Visualization
-
-* Explore satellite observations in a geospatial monitoring workflow.
-* Support analysis involving multiple satellite data sources.
-* Provide a foundation for future map-based environmental intelligence.
-
-### Alerts & Reports
-
-* Review and manage vegetation-health alerts.
-* Generate weekly, monthly, and yearly monitoring reports.
-* Export analysis results for documentation and review.
-
-### Interactive Dashboard
-
-* Gradio-based user interface.
-* Light and dark appearance modes.
-* Interactive visualizations and monitoring controls.
-
----
-
-## How It Works
+## How it works
 
 ```text
-Satellite Imagery
-       │
-       ▼
-Local Dataset Scanner
-       │
-       ▼
-Non-destructive Image Preprocessing
-       │
-       ▼
-Image Processing & NDVI Analysis
-       │
-       ▼
-Vegetation Health Assessment
-       │
-       ├──────────────► Change Detection
-       │
-       ├──────────────► Alert Generation
-       │
-       ├──────────────► Historical Prediction
-       │
-       └──────────────► Monitoring Reports
-                              │
-                              ▼
-                    Gradio Dashboard
-                              │
-                              ▼
-                         User Insights
+Satellite observations
+        │
+        ▼
+Dataset scanning and preprocessing
+        │
+        ▼
+NDVI and image analysis
+        │
+        ├──► Change detection
+        ├──► Health alerts
+        ├──► Historical prediction
+        └──► Reports
+        │
+        ▼
+React GIS dashboard + FastAPI API
 ```
 
----
+## Tech stack
 
-## Technology Stack
+| Area | Tools |
+| --- | --- |
+| Dashboard | React, Vite |
+| API | FastAPI, Uvicorn |
+| Geospatial analysis | Rasterio, NumPy, Pillow |
+| Data and persistence | Pandas, SQLAlchemy |
+| Visualisation | Plotly, Matplotlib |
+| Modelling | Scikit-learn |
 
-| Technology    | Purpose                                |
-| ------------- | -------------------------------------- |
-| Python        | Core application and analysis logic    |
-| Gradio        | Interactive monitoring dashboard       |
-| FastAPI       | Backend API services                   |
-| Uvicorn       | ASGI server                            |
-| NumPy         | Numerical computation                  |
-| Pandas        | Data processing and analysis           |
-| Pillow        | Image handling                         |
-| Rasterio      | Raster and geospatial image processing |
-| Plotly        | Interactive visualizations             |
-| Matplotlib    | Data visualization                     |
-| Scikit-learn  | Machine learning and prediction        |
-| SQLAlchemy    | Database interaction                   |
-| python-dotenv | Environment configuration              |
-
----
-
-## Project Structure
+## Project structure
 
 ```text
-Satellite-main/
-│
-├── forestwatch/
-│   ├── __init__.py
-│   ├── api.py
-│   ├── gradio_app.py
-│   ├── analysis.py
-│   ├── prediction.py
-│   ├── alerts.py
-│   ├── reports.py
-│   ├── database.py
-│   ├── config.py
-│   ├── schemas.py
-│   ├── dataset_scanner.py
-│   ├── preprocessing.py
-│   └── multisatellite.py
-│
-├── dataset/
-│   ├── Sentinel-1/
-│   └── Sentinel-2/
-│
-├── tests/
-│
-├── requirements.txt
-├── docker-compose.yml
-├── .gitignore
-└── README.md
+ForestWatch/
+├── frontend/           # React/Vite GIS dashboard
+├── forestwatch/        # FastAPI service and analysis modules
+├── tests/              # Test suite
+├── requirements.txt    # Python dependencies
+├── docker-compose.yml  # Local container setup
+└── .env.example        # Environment-variable reference
 ```
 
----
+## Run locally
 
-## Installation
+### Prerequisites
 
-### 1. Clone the repository
+- Python 3.10 or newer
+- Node.js 20 or newer
+- A local satellite dataset (optional for exploring the interface, required for meaningful analysis)
+
+### 1. Clone and configure Python
 
 ```bash
-git clone https://github.com/AryaLolusare2712/ForestWatch-AI.git
-cd ForestWatch-AI
+git clone https://github.com/AryaLolusare2712/ForestWatch.git
+cd ForestWatch
+python -m venv .venv
 ```
 
-### 2. Create a virtual environment
-
-**Windows:**
+Activate the environment:
 
 ```powershell
-python -m venv .venv
+# Windows PowerShell
 .\.venv\Scripts\Activate.ps1
 ```
 
-**Linux / macOS:**
-
 ```bash
-python3 -m venv .venv
+# macOS / Linux
 source .venv/bin/activate
 ```
 
-### 3. Install dependencies
+Install the API dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+### 2. Create local configuration
 
-Create your local configuration file:
-Create `.env` and configure the dataset and output directories.
-
-Example:
+Copy `.env.example` to `.env`, then adjust the paths and thresholds for your machine.
 
 ```env
 FORESTWATCH_DATASET=dataset
@@ -220,164 +115,71 @@ FORESTWATCH_HEALTHY_NDVI=0.6
 FORESTWATCH_DECREASE=-0.15
 ```
 
-> Adjust paths and thresholds according to your local dataset and project configuration. Keep private credentials and machine-specific settings out of GitHub.
+Never commit `.env` files, SMTP passwords, or private dataset paths.
 
----
-
-## Running the Application
-
-### Start the Gradio Dashboard
-
-```bash
-python -m forestwatch.gradio_app
-```
-
-Open the local URL displayed in your terminal, typically:
-
-```text
-http://127.0.0.1:7860
-```
-
-### Start the FastAPI Backend
-
-In a separate terminal:
+### 3. Start the API
 
 ```bash
 python -m uvicorn forestwatch.api:app --reload
 ```
 
-API documentation:
+The API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-```text
-http://127.0.0.1:8000/docs
-```
+### 4. Start the dashboard
 
-### Start the React GIS Dashboard
+In another terminal:
 
-The standalone React/Vite GIS dashboard is in `frontend/`. It uses FastAPI for dated NDVI change values, so start the API first. Then, in a second terminal with Node.js 20+ installed:
-
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open the Vite address shown in the terminal, normally `http://127.0.0.1:5173`. Select an earlier and later observation date to update the GIS period. The dashboard reports actual NDVI-index change; it does not scale values to −100% or +100%.
+Open the Vite URL shown in the terminal—normally [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
-### Deploy the React dashboard and API
+### Optional: run the Gradio workspace
 
-Deploy the React/Vite dashboard to **Vercel** and the FastAPI backend to **Render**:
+```bash
+python -m forestwatch.gradio_app
+```
 
-1. Create a Render **Web Service** from this GitHub repository. Set the build command to `pip install -r requirements.txt` and the start command to `uvicorn forestwatch.api:app --host 0.0.0.0 --port $PORT`.
-2. Add a persistent Render disk at `/var/data`. Set `FORESTWATCH_DATASET=/var/data/dataset` and `FORESTWATCH_OUTPUT=/var/data/data`. Persistent storage is important because satellite uploads, reports, and the SQLite database must survive restarts.
-3. When Render gives you an API URL, set `FORESTWATCH_ALLOWED_ORIGINS` to your Vercel URL, for example `https://your-forestwatch.vercel.app`.
-4. Create a Vercel project with `frontend` as its root directory. Add the Vercel environment variable `VITE_FORESTWATCH_API` with the Render API URL, for example `https://your-forestwatch-api.onrender.com`, then deploy.
-5. After the first backend deployment, upload the dated NDVI and true-colour images using the dashboard. The repository does not contain the satellite dataset, so it must be uploaded to the persistent disk separately.
+## Dataset notes
 
-Do not commit `.env` files or SMTP passwords. Configure them only in the Render environment-variable settings.
-
-### Login and email alerts
-
-The React dashboard has a local registration and login page. Its email address is the destination for newly created vegetation-health alerts. To enable delivery, fill the `FORESTWATCH_SMTP_*` values in your private `.env` file. Use an application password from your email provider, not your normal account password. If SMTP is not configured, alerts remain visible in the dashboard and no email is sent.
-
-## Dataset
-
-ForestWatch is designed to work with locally available satellite observations, including:
-
-* **Sentinel-1:** VV/VH radar imagery for multi-satellite monitoring workflows.
-* **Sentinel-2:** NDVI and true-color imagery for vegetation analysis.
-
-The repository may contain sample imagery for development and demonstration. For larger experiments, users can configure their own dataset location through `.env`.
-
-### Suggested Dataset Organization
+ForestWatch works with dated Sentinel-1 and Sentinel-2 observations. Organise source material by date so the dashboard can compare periods consistently.
 
 ```text
 dataset/
 ├── Sentinel-1/
 │   ├── VV/
 │   └── VH/
-│
 └── Sentinel-2/
     ├── NDVI/
     └── TrueColor/
 ```
 
-Use dated filenames or metadata so observations can be organized chronologically.
+Use the dashboard's preprocessing workflow before analysis. It validates readable files, normalises imagery, and preserves the source data.
 
-### Preprocess before analysis
+## Deployment
 
-Before using NDVI analysis, change detection, or prediction, open **Satellite Image Upload** in the dashboard and select **Preprocess local satellite data**. This validates readable image files, corrects EXIF orientation, standardizes images to three RGB channels, and normalizes the pixels to a 0–1 range.
+The reference deployment separates the dashboard and API:
 
-The source satellite files are never modified. A local processing manifest is written to `data/processed/` so you can review which images were prepared and which unreadable files were skipped.
+1. Deploy the FastAPI service to Render (or another Python host).
+2. Attach persistent storage for the dataset, uploads, reports, and SQLite data.
+3. Set `FORESTWATCH_ALLOWED_ORIGINS` to the dashboard URL.
+4. Deploy `frontend/` to Vercel and set `VITE_FORESTWATCH_API` to the API URL.
 
-The bundled Gorewada reference boundary is also used as a no-data mask for scenes on the matching 1500 × 1224 pixel grid. Black pixels outside the boundary, or black gaps inside it, are excluded from NDVI and change calculations rather than being counted as low vegetation.
+## Responsible interpretation
 
----
-
-## Example Use Cases
-
-1. **Historical Forest Monitoring** — Examine vegetation health across available observation dates.
-2. **Potential Degradation Screening** — Identify areas requiring additional investigation.
-3. **Vegetation Trend Analysis** — Explore changes in NDVI over time.
-4. **Satellite Data Comparison** — Work with optical and radar observations in a unified workflow.
-5. **Environmental Reporting** — Generate monitoring reports for documentation and analysis.
-
----
-
-## Future Enhancements
-
-* [ ] Advanced geospatial map integration.
-* [ ] Automated satellite data acquisition.
-* [ ] Improved cloud and image-quality filtering.
-* [ ] More robust spatial change-detection models.
-* [ ] Multi-region forest monitoring.
-* [ ] Drone imagery integration for field-level verification.
-* [ ] Enhanced machine learning models for vegetation forecasting.
-* [ ] Cloud deployment and scalable processing.
-* [ ] Role-based access and collaborative monitoring.
-
----
-
-## Important Interpretation Note
-
-ForestWatch provides satellite-based monitoring indicators and experimental predictions. A decrease in NDVI or an apparent change in imagery does not, by itself, prove deforestation.
-
-Results may be influenced by seasonality, cloud cover, image quality, moisture, sensor differences, and other environmental factors. Potential degradation should be verified using appropriate georeferenced data and field assessment before making management or conservation decisions.
-
----
-
-## Privacy & Data Handling
-
-* Satellite imagery is processed using the project's local dataset workflow.
-* Generated reports, local databases, and model outputs are intended for local project use.
-* Do not commit `.env` files containing secrets or private machine paths.
-* Review `.gitignore` before publishing the repository.
-
----
+ForestWatch provides monitoring signals, not a conclusive finding of deforestation. NDVI and image differences can be affected by seasonality, cloud cover, sensor differences, moisture, and image quality. Validate potential degradation with appropriate georeferenced data and field assessment before making management or conservation decisions.
 
 ## Contributing
 
-Contributions, suggestions, and improvements are welcome.
+Contributions and ideas are welcome.
 
 1. Fork the repository.
-2. Create a feature branch.
+2. Create a branch: `git checkout -b feature/my-improvement`
+3. Commit your changes and open a pull request.
 
-```bash
-git checkout -b feature/your-feature
-```
+## License
 
-3. Commit your changes.
-
-```bash
-git commit -m "Add your feature"
-```
-
-4. Push the branch.
-
-```bash
-git push origin feature/your-feature
-```
-
-5. Open a pull request.
-
----
+Released under the [MIT License](LICENSE).
