@@ -16,6 +16,14 @@ The platform combines a Gradio dashboard with a FastAPI backend to provide an in
 
 ---
 
+## Live Preview
+
+<p align="center">
+  <img src="docs/screenshots/forestwatch-dashboard.png" alt="ForestWatch deployed sign-in screen" width="100%">
+</p>
+
+---
+
 ## Overview
 
 Forests play a vital role in maintaining biodiversity, regulating climate, and supporting ecosystems. Monitoring forest health over large areas can be challenging when relying solely on manual inspections.
