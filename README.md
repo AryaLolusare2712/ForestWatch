@@ -68,11 +68,12 @@ React GIS dashboard + FastAPI API
 | Area | Tools |
 | --- | --- |
 | Dashboard | React, Vite |
-| API | FastAPI, Uvicorn |
-| Geospatial analysis | Rasterio, NumPy, Pillow |
-| Data and persistence | Pandas, SQLAlchemy |
+| API and interactive workspace | FastAPI, Uvicorn, Gradio |
+| Geospatial analysis | Rasterio, NumPy, Pillow, Pandas |
+| Data and persistence | SQLAlchemy, SQLite |
 | Visualisation | Plotly, Matplotlib |
-| Modelling | Scikit-learn |
+| Modelling | Scikit-learn, ONNX Runtime (packaged YOLOv8n model) |
+| Deployment | Vercel dashboard, Python-compatible API host such as Render |
 
 ## Project structure
 
